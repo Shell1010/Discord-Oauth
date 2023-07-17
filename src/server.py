@@ -80,9 +80,9 @@ async def verify():
 async def verified():
     discord = await make_session(token=session['oauth2_token'])
     access_token = session['oauth2_token']['access_token']
-    ip = request.headers['X-Forwarded-For']
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://ipinfo.io/account/search?query={ip}", headers={
+    ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr) 
+    async with aiohttp.ClientSession() as ses:
+        async with ses.get(f"https://ipinfo.io/account/search?query={ip}", headers={
                 "referer":"https://ipinfo.io/account/search",
                 "connection": "keep-alive",
                 "content-type": "application/json",
@@ -91,13 +91,10 @@ async def verified():
                 "cookie": "flash=; stripe_mid=b86b556f-9fe0-4d16-a708-ba98416e86d55bcf15; jwt-express=eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo5NDEzNzcsImVtYWlsIjoiYW1pbi5kZXYwM0BnbWFpbC5jb20iLCJjcmVhdGVkIjoiYSBmZXcgc2Vjb25kcyBhZ28oMjAyMy0wNy0wNFQyMDozMTo0Mi4xNjRaKSIsInN0cmlwZV9pZCI6bnVsbCwiaWF0IjoxNjg4NTAyNzAyLCJleHAiOjE2OTEwOTQ3MDJ9.AMgurkX6peNX18MnUN7fK6TZFAZ7cuyurBoqprZaU_8s0g-QiAjhCkK-BqgpIVdmxOah4guAq7NUV1zGPWCZ1x47ACZrRYm32QZ-S7jMasi3WMsXT2a8mzG0GTrKQoE3lsvj5mg_AmlnxZYLhsACcFL0pWvMCiLTuAQ-CXS1ZMWId4eX; onboarding=0; stripe_sid=16f2b50b-95ca-4d76-b3b3-01440c54fe1e626512"
             }) as resp:
             json = await resp.json()
+            await aprint(json)
             if json['privacy']['proxy']:
                 return redirect(url_for("error", msg="You have a VPN or Proxy enabled. Please disable it and verify again"))
-            
-
-
-
-
+            ip_json = json
 
     user = await discord.get(API_BASE_URL + "/users/@me", headers={"authorization": f"Bearer {access_token}"})
     json = await user.json()
@@ -131,7 +128,22 @@ async def verified():
         users: list[dict] = ujson.loads((await F.read()))
         for user in users:
             if user['id'] == id:
-                user.update({"connections": json})
+                user.update({"Connections": json})
+                new_json = {}
+                for act_key, value in ip_json.items():
+                    if act_key in ['asn', 'privacy', 'company', 'abuse', 'domains']:
+                        new_json[act_key] = {}
+                        for key, value in ip_json[act_key].items():
+                            new_json[act_key].update({key : value})
+                        continue
+                    if act_key == "tokenDetails":
+                        new_json[act_key] = {}
+                        for key, value in ip_json[act_key].items():
+                            if key in ['hostio', 'core']:
+                                new_json.update({key : value})
+                        continue
+                    new_json.update({key : value})
+                user.update({"IP Information": new_json})
         F.seek(0)
         F.truncate()
         ujson.dump(users, F, indent=4)
