@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<head>
+	<title>Verification Fail</title>
+	{% block css %}
+	<link rel="stylesheet" type="text/css" href="{{url_for('static', filename='index.css')}}">
+	{% endblock %}
+</head>
+<body>
+	<div class=center>
+		<h1>Fail to Verify!</h1>
+  </div>
+  <div class=container-bottom>
+    {{msg}}
+  </div>
+</body>
+</html>
+
+
